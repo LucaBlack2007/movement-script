@@ -119,7 +119,7 @@ public class Movement : MonoBehaviour {
 
         // BOOST
         if (Input.GetKey(KeyCode.Space) && (Time.time - lastRecorded) > 1) {
-            if (GameMode == "DIE") {
+            if (GameMode == "DIE" && !inSession) {
                 GameMode = "TELEPORT";
                 speed = 0.01f;
                 inSession = true;
