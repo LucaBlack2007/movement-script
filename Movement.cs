@@ -10,7 +10,7 @@ public class Movement : MonoBehaviour {
 
     // temporaries to track speed and reset
     Vector3 temp;
-    Vector3 temp2;
+    float temp2;
 
     //bool moving = false;
     bool inSession;
@@ -20,6 +20,7 @@ public class Movement : MonoBehaviour {
     float boostTime = 0f;
     float gameModeCooldown = 0f;
     float speedDevCd = 0f;
+    float cubeMovingCooldown = 0f;
 
     float speed;
     string GameMode;
@@ -28,10 +29,19 @@ public class Movement : MonoBehaviour {
     // list to track locations 
     ArrayList locations;
 
+    void print(string a) {
+        Debug.Log(a);
+    }
+
     void Start() {
 
         cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cube.transform.position = new Vector3(0, 0.5f, 0);
+        cube.tag = "Enemy";
+
+        //print(cube.tag);
+        //print(this.tag);
+        //print();
 
         // BOUNCE or TELEPORT or DIE
         GameMode = "TELEPORT";
@@ -51,10 +61,6 @@ public class Movement : MonoBehaviour {
         // ai code initiation
     }
 
-
-    void print(string a) {
-        Debug.Log(a);
-    }
 
     // Update is called once per frame
     void Update() {  
@@ -87,9 +93,10 @@ public class Movement : MonoBehaviour {
 
                 speedDevCd = Time.time;
             }
-            if (Input.GetKey(KeyCode.B)) {
+            if (Input.GetKey(KeyCode.B) && (Time.time - cubeMovingCooldown) > 1) {
                 cubeMoving = !cubeMoving;
                 print(cubeMoving ? "AI following you now!" : "AI stopped following you!");
+                cubeMovingCooldown = Time.time;
             }
             
         }
@@ -126,8 +133,8 @@ public class Movement : MonoBehaviour {
                 vec = new Vector3(speed, 0f, 0f);
                 print("Game restarted, GameMode reverted to TELEPORT.");
             } else {
-                temp2 = vec;
-                vec = new Vector3(vec.x*3, vec.y*3, vec.z*3);
+                temp2 = speed;
+                speed*=3;
                 //print("boost STARTED");
                 boostTime = Time.time; // 1
                 lastRecorded = Time.time;
@@ -136,7 +143,7 @@ public class Movement : MonoBehaviour {
 
 
         if (Time.time - boostTime > 0.2 && boostTime > 0) { 
-            vec = temp2;
+            speed = temp2;
             boostTime = 0;
             //print("boost OVER");
         }
@@ -169,20 +176,24 @@ public class Movement : MonoBehaviour {
             check direction/velocity of player
 
             */ 
+
             Vector3 aiVec = vec;
             float xDiff = 0f;
             float yDiff = 0f;
+            float aiSpeed = speed/2;
+
+            if (Time.time - boostTime < 0.2 && boostTime > 0) aiSpeed/=3;
 
             if (transform.position.x != 0) 
                 xDiff = transform.position.x - cube.transform.position.x;
             if (transform.position.y != 0)
                 yDiff = transform.position.y - cube.transform.position.y;
 
-            if (xDiff < 0) xDiff = -speed;
-            if (xDiff > 0) xDiff = speed;
+            if (xDiff < 0) xDiff = -aiSpeed;
+            if (xDiff > 0) xDiff = aiSpeed;
 
-            if (yDiff < 0) yDiff = -speed;
-            if (yDiff > 0) yDiff = speed;
+            if (yDiff < 0) yDiff = -aiSpeed;
+            if (yDiff > 0) yDiff = aiSpeed;
 
             aiVec = new Vector3(xDiff, yDiff, 0f);
 
@@ -190,6 +201,8 @@ public class Movement : MonoBehaviour {
 
 
         }
+
+
 
         /*
 
@@ -204,4 +217,10 @@ public class Movement : MonoBehaviour {
 
         //Debug.Log(Time.time);
     }  
+
+    void OnCollisionEnter(Collision collision) {
+        print("collided");
+    }
+
+    
 }
