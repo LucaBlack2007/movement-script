@@ -1,12 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Movement : MonoBehaviour {
+
+    Text hp;
 
     // enemy ai cube & fruits
     GameObject cube;
     GameObject buff;
+    GameObject healthText;
 
     bool cubeMoving;
 
@@ -22,12 +26,15 @@ public class Movement : MonoBehaviour {
     // cooldowns
     float lastRecorded = 0f;
     float fruitLastRecorded = 0f;
+    float collideLastRecorded = 0f;
 
     float boostTime = 0f;
     float fruitBoostTime = 0f;
     float gameModeCooldown = 0f;
     float speedDevCd = 0f;
     float cubeMovingCooldown = 0f;
+
+    int health;
 
     float speed;
     string GameMode;
@@ -42,13 +49,40 @@ public class Movement : MonoBehaviour {
 
     void Start() {
 
+        health = 3;
+
+        RectTransform t = transform as RectTransform;
+
+        healthText = new GameObject("healthText");
+        t.y = 9;
+        t.width = 1;
+        t.height = 1;
+        
+        hp = healthText.AddComponent<Text>();
+
         cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cube.transform.position = new Vector3(0, 0.5f, 0);
         cube.tag = "Enemy";
 
+        BoxCollider bc = cube.AddComponent<BoxCollider>();
+        bc.isTrigger = true;
+
+        Rigidbody rb = cube.AddComponent<Rigidbody>();
+        rb.useGravity = false;
+        rb.isKinematic = true;
+        //rb.angularDrag = 0f;
+        
+
         buff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         buff.transform.position = new Vector3(1000, 1000, 0);
-        buff.tag = "buff";
+        buff.tag = "Buff";
+
+        BoxCollider bc2 = buff.AddComponent<BoxCollider>();
+        bc2.isTrigger = true;
+
+        Rigidbody rb2 = buff.AddComponent<Rigidbody>();
+        rb2.useGravity = false;
+        rb2.isKinematic = true;
 
         // defaults to no fruit not board
         fruitOnBoard = false;
@@ -64,14 +98,14 @@ public class Movement : MonoBehaviour {
         inSession = true;
         // starts the game
 
-        speed = 0.04f;
+        speed = 0.01f;
         // speed variable at which user travels at
 
         vec = new Vector3(speed, 0f, 0f);
         // actual speed vector user travels at
 
         locations = new ArrayList();
-        cubeMoving = false;
+        cubeMoving = true;
         // ai code initiation
     }
 
@@ -140,7 +174,7 @@ public class Movement : MonoBehaviour {
 
         // BOOST
         if (Input.GetKey(KeyCode.Space) && (Time.time - lastRecorded) > 1) {
-            if (GameMode == "DIE" && !inSession) {
+            if (!inSession) {
                 GameMode = "TELEPORT";
                 speed = 0.01f;
                 inSession = true;
@@ -221,8 +255,9 @@ public class Movement : MonoBehaviour {
 
         //print(timeRounded % 5);
 
-        if (timeRounded % 5 < 0.01 && Time.time > 0 && !fruitOnBoard) {
-
+        void spawnFruit() { 
+            if (!inSession) return;
+             
             double numX = Random.Range(-9.5f, 9.5f);
             double numY = Random.Range(-9.5f, 9.5f);
 
@@ -233,6 +268,11 @@ public class Movement : MonoBehaviour {
             fruitOnBoard = true;
         }
 
+        if (timeRounded % 5 < 0.01 && Time.time > 0 && !fruitOnBoard) spawnFruit();
+
+        /*
+        ALL FUNTIONAL COLLISION DETECTION CODE JUST BAD :D vvvvv
+        
         if (fruitOnBoard) {
             //print("(" + (Mathf.Round(buff.transform.position.x * 1f) * 0.01f) + ", " + (Mathf.Round(transform.position.y * 1f) * 0.01f) + ") (" + (Mathf.Round(transform.position.x * 1f) * 0.01f) + ", " + (Mathf.Round(buff.transform.position.y * 1f) * 0.01f) + ")");
             if (((Mathf.Round(buff.transform.position.x * 1f) * 0.01f) == (Mathf.Round(transform.position.x * 1f) * 0.01f)) && ((Mathf.Round(buff.transform.position.y * 1f) * 0.01f) == (Mathf.Round(transform.position.y * 1f) * 0.01f))) {
@@ -247,12 +287,15 @@ public class Movement : MonoBehaviour {
                 fruitLastRecorded = Time.time;
             }
         }
+        
 
         if (Time.time - fruitBoostTime > 0.2 && fruitBoostTime > 0) { 
             speed = temp2 == 0 ? temp3 : temp2;
             fruitBoostTime = 0;
             //print("boost OVER");
         }
+
+        */
 
         /*
 
@@ -266,11 +309,48 @@ public class Movement : MonoBehaviour {
         */
 
         //Debug.Log(Time.time);
+        if (!fruitOnBoard) spawnFruit();
+        hp.text = "Health: " + health;
     }  
 
-    void OnCollisionEnter(Collision collision) {
-        print("collided");
+    void OnTriggerEnter(Collider other) {
+        
+        print(other.gameObject.tag);
+
+        string tag = other.gameObject.tag;
+        if (tag == "Buff") {
+            fruitOnBoard = false;
+            buff.transform.position = new Vector3(1000f, 1000f, 0);
+            // speed boost works but is kinda dumb "PICKED UP FRUIT! Speed Boost &"
+            print("Health Increased by 1: " + health + " -> " + (health+1));
+            health++;
+
+            /*
+            ALL FUNCTIONAL CODE vvvv JUST SPEED BOOST KINDA SUCKS
+
+            temp3 = speed;
+            speed*=4;
+            
+            fruitBoostTime = Time.time;
+            fruitLastRecorded = Time.time;
+            */
+        } else if (tag == "Enemy") {
+            if (Time.time - collideLastRecorded > 0.5f) {
+                if (health <= 1) {
+                    transform.position = new Vector3(0f,0f,0f);
+                    speed = 0f;
+                    inSession = false;
+                    print("\ngg");
+                } else {
+                    health--;
+                    print("COLLIDED! Health reduced by 1: " + (health+1) + " -> " + health);
+                    collideLastRecorded = 0f;
+                }
+            }
+        }
+
+        //print("collided");
     }
 
-    
+     
 }
