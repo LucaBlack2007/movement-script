@@ -4,20 +4,27 @@ using UnityEngine;
 
 public class Movement : MonoBehaviour {
 
-    // enemy ai cube
+    // enemy ai cube & fruits
     GameObject cube;
+    GameObject buff;
+
     bool cubeMoving;
 
     // temporaries to track speed and reset
     Vector3 temp;
     float temp2;
+    float temp3;
 
-    //bool moving = false;
+    // different objects being on the board / moaving
     bool inSession;
+    bool fruitOnBoard;
 
     // cooldowns
     float lastRecorded = 0f;
+    float fruitLastRecorded = 0f;
+
     float boostTime = 0f;
+    float fruitBoostTime = 0f;
     float gameModeCooldown = 0f;
     float speedDevCd = 0f;
     float cubeMovingCooldown = 0f;
@@ -39,6 +46,13 @@ public class Movement : MonoBehaviour {
         cube.transform.position = new Vector3(0, 0.5f, 0);
         cube.tag = "Enemy";
 
+        buff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        buff.transform.position = new Vector3(1000, 1000, 0);
+        buff.tag = "buff";
+
+        // defaults to no fruit not board
+        fruitOnBoard = false;
+
         //print(cube.tag);
         //print(this.tag);
         //print();
@@ -50,7 +64,7 @@ public class Movement : MonoBehaviour {
         inSession = true;
         // starts the game
 
-        speed = 0.01f;
+        speed = 0.04f;
         // speed variable at which user travels at
 
         vec = new Vector3(speed, 0f, 0f);
@@ -143,7 +157,7 @@ public class Movement : MonoBehaviour {
 
 
         if (Time.time - boostTime > 0.2 && boostTime > 0) { 
-            speed = temp2;
+            speed = temp3 == 0 ? temp2 : temp3;
             boostTime = 0;
             //print("boost OVER");
         }
@@ -183,6 +197,7 @@ public class Movement : MonoBehaviour {
             float aiSpeed = speed/2;
 
             if (Time.time - boostTime < 0.2 && boostTime > 0) aiSpeed/=3;
+            if (Time.time - fruitBoostTime < 0.2 && fruitBoostTime > 0) aiSpeed/=4;
 
             if (transform.position.x != 0) 
                 xDiff = transform.position.x - cube.transform.position.x;
@@ -202,7 +217,42 @@ public class Movement : MonoBehaviour {
 
         }
 
+        float timeRounded = (Mathf.Round(Time.time * 100.0f) * 0.01f);
 
+        //print(timeRounded % 5);
+
+        if (timeRounded % 5 < 0.01 && Time.time > 0 && !fruitOnBoard) {
+
+            double numX = Random.Range(-9.5f, 9.5f);
+            double numY = Random.Range(-9.5f, 9.5f);
+
+            buff.transform.position = new Vector3((float)numX, (float)numY, 0);
+        
+            print("fruit spawned at: (" + numX + ", " + numY + ", 0)");
+
+            fruitOnBoard = true;
+        }
+
+        if (fruitOnBoard) {
+            //print("(" + (Mathf.Round(buff.transform.position.x * 1f) * 0.01f) + ", " + (Mathf.Round(transform.position.y * 1f) * 0.01f) + ") (" + (Mathf.Round(transform.position.x * 1f) * 0.01f) + ", " + (Mathf.Round(buff.transform.position.y * 1f) * 0.01f) + ")");
+            if (((Mathf.Round(buff.transform.position.x * 1f) * 0.01f) == (Mathf.Round(transform.position.x * 1f) * 0.01f)) && ((Mathf.Round(buff.transform.position.y * 1f) * 0.01f) == (Mathf.Round(transform.position.y * 1f) * 0.01f))) {
+                fruitOnBoard = false;
+                buff.transform.position = new Vector3(1000f, 1000f, 0);
+                print("PICKED UP FRUIT! Speed Boost");
+                
+                temp3 = speed;
+                speed*=4;
+                //print("boost STARTED");
+                fruitBoostTime = Time.time; // 1
+                fruitLastRecorded = Time.time;
+            }
+        }
+
+        if (Time.time - fruitBoostTime > 0.2 && fruitBoostTime > 0) { 
+            speed = temp2 == 0 ? temp3 : temp2;
+            fruitBoostTime = 0;
+            //print("boost OVER");
+        }
 
         /*
 
