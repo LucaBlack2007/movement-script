@@ -8,12 +8,16 @@ public class Movement : MonoBehaviour {
     // enemy ai cube & fruits
     //GameObject[] gos;
 
-    bool attract;
     int counter;
+    int _counter;
+
+    bool attract;
     bool magnet;
     bool canBoost;
     bool powerUp;
     bool pickedUp;
+
+    List<GameObject> obstacles = new List<GameObject>();
 
     GameObject cube;
     GameObject buff;
@@ -51,14 +55,65 @@ public class Movement : MonoBehaviour {
     Vector3 vec;
 
     // list to track locations 
-    ArrayList locations;
+    List<Vector3> locations = new List<Vector3>();
 
     void print(string a) {
         Debug.Log(a);
     }
 
+    List<GameObject> initiateObstacles(int amount) {
+
+        foreach (GameObject g in obstacles) Destroy(g);
+        // g.transform.position = new Vector3(1000,1000,1000);
+
+        for (int i = 0; i < amount; i++) {
+
+            GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
+            
+            while (Mathf.Abs(obj.transform.position.x) < 2 || Mathf.Abs(obj.transform.position.y) < 2) 
+                obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
+
+            foreach (GameObject g in obstacles) {
+                if (g != null) {
+                    float xDiff = 0f;
+                    float yDiff = 0f;
+
+                    if (g.transform.position.x != 0) 
+                        xDiff = g.transform.position.x - obj.transform.position.x;
+                    if (g.transform.position.y != 0)
+                        yDiff = g.transform.position.y - obj.transform.position.y;
+
+                    if (Mathf.Abs(xDiff) < 1 && Mathf.Abs(yDiff) < 1) {
+                        obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
+                    }
+                }
+            }
+
+            obj.name = "Obstacle " + i;
+            obj.GetComponent<Renderer>().material.SetColor("_Color", Color.blue);
+
+            //while (locations.Contains(obj.transform.position)) obj.transform.position = new Vector3((float)Random.Range(-9.5f, 9.5f), (float)Random.Range(-9.5f, 9.5f), 0);
+            //locations.Add(obj.transform.position);
+
+            BoxCollider bc = obj.AddComponent<BoxCollider>();
+            bc.isTrigger = true;
+
+            Rigidbody rb = obj.AddComponent<Rigidbody>();
+            rb.useGravity = false;
+            rb.isKinematic = true;
+
+            obj.tag = "Obstacle";
+
+            obstacles.Add(obj);
+        }
+
+        return obstacles;
+    }
+
     void Start() {
 
+        obstacles = initiateObstacles(3);
 
         cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         void spawnCube() => cube.transform.position = new Vector3((float)Random.Range(-9.5f, 9.5f), (float)Random.Range(-9.5f, 9.5f), 0);
@@ -115,7 +170,6 @@ public class Movement : MonoBehaviour {
         vec = new Vector3(speed, 0f, 0f);
         // actual speed vector user travels at
 
-        locations = new ArrayList();
         cubeMoving = true;
         // ai code initiation
         //gos = GameObject.FindGameObjectsWithTag("Text");
@@ -352,6 +406,8 @@ public class Movement : MonoBehaviour {
             float x = 0f;
             float y = 0f;
 
+            int distance = 2;
+
             if (transform.position.x != 0) 
                 xDiff = transform.position.x - buff.transform.position.x;
             if (transform.position.y != 0)
@@ -365,7 +421,7 @@ public class Movement : MonoBehaviour {
 
             aiVec = new Vector3(x, y, 0f);
 
-            if (Mathf.Abs(xDiff) < 2 && Mathf.Abs(yDiff) < 2) attract   = true;
+            if (Mathf.Abs(xDiff) < distance && Mathf.Abs(yDiff) < distance) attract = true;
 
             if (attract) buff.transform.Translate(aiVec);
             
@@ -377,7 +433,7 @@ public class Movement : MonoBehaviour {
 
     void OnTriggerEnter(Collider other) {
         
-        print(other.gameObject.tag);
+        //print(other.gameObject.tag);
 
         string tag = other.gameObject.tag;
         if (tag == "Buff") {
@@ -385,8 +441,10 @@ public class Movement : MonoBehaviour {
             buff.transform.position = new Vector3(1000f, 1000f, 0);
             // speed boost works but is kinda dumb "PICKED UP FRUIT! Speed Boost &"
             print("Health Increased by 1: " + health + " -> " + (health+1));
+            //print(counter % 5 == 0);
             health++;
             if (!canBoost) counter++;
+            _counter++;
             attract = false;
             //print("Collected another, #" + counter + "!");
 
@@ -395,6 +453,7 @@ public class Movement : MonoBehaviour {
                 print("boost charged!");
                 canBoost = true;
             }
+            if (_counter % 5 == 0) obstacles = initiateObstacles(obstacles.Count + 1);
 
             if (powerUp) {
                 powerUp = false;
@@ -424,6 +483,9 @@ public class Movement : MonoBehaviour {
                     collideLastRecorded = 0f;
                 }
             }
+        } else if (tag == "Obstacle") {
+            death();
+            print("collided with obstacle!");
         }
 
         //print("collided");
