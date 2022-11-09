@@ -3,7 +3,68 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+/*
+
+    -------------------------------------------------
+    ------------ F E A T U R E   L I S T ------------
+    -------------------------------------------------
+
+        - WASD Movement
+        - Arrow UP or DOWN for speed +/- 1 (dev command)
+        - 3 Gamemodes: Bounce, Teleport, Die. Toggle with G (default is teleport)
+            * Bounce: Bounce off the wall
+            * Telerport: Teleport to the other side (like pacman)
+            * Die: Die if you hit the wall
+        - HP displays on your cube
+        - AI constantly following you, toggle with B (dev command)
+        - Obstacles Generate every 5th fruit picked up
+        - Fruit randomly spawning after you pick it up
+        - -1 HP if you hit the AI cube, instant death if you hit an obstacle
+        - Magnet to drag fruit towards you if you're close, bind is M by default
+        - Every 5 picked up fruits you get a boost you can activate with SPACE
+        - Occasoinally a purple fruit will spawn which upon picked up will slow the enemy
+
+        !!! all binds can be changed on LINE 40 - 54 !!!
+
+    -------------------------------------------------
+    -------------------------------------------------
+    -------------------------------------------------
+
+*/
+
 public class Movement : MonoBehaviour {
+
+    class Binds {
+
+        // MOVEMENT
+        public KeyCode UP = KeyCode.W;
+        public KeyCode DOWN = KeyCode.S;
+        public KeyCode LEFT = KeyCode.A;
+        public KeyCode RIGHT = KeyCode.D;
+
+        // SPEED
+        public KeyCode SPEED_UP = KeyCode.UpArrow;
+        public KeyCode SPEED_DOWN = KeyCode.DownArrow;
+
+        // DEV BINDS / OTHER FEATURES
+        public KeyCode TOGGLE_AI = KeyCode.B;
+        public KeyCode GAMEMODE = KeyCode.G;
+        public KeyCode MAGNET = KeyCode.M;
+        public KeyCode DEV_DEBUG = KeyCode.O;
+        public KeyCode BOOST = KeyCode.Space;
+
+        // RESTART
+        public KeyCode RESTART = KeyCode.Space;
+
+    } 
+
+    enum GameModes { 
+        BOUNCE,
+        TELEPORT, 
+        DIE 
+    }
+
+    bool isDEV = true;
 
     // enemy ai cube & fruits
     //GameObject[] gos;
@@ -21,8 +82,12 @@ public class Movement : MonoBehaviour {
 
     GameObject cube;
     GameObject buff;
+
+    Binds Bind;
+
     Renderer mainColor;
     Renderer buffColor;
+    Renderer cubeColor;
     //GameObject healthText;
 
     bool cubeMoving;
@@ -41,6 +106,9 @@ public class Movement : MonoBehaviour {
     // WORKS JUST DEPRECATED ---> float fruitLastRecorded = 0f;
     float collideLastRecorded = 0f;
 
+    float debugCd = 0f;
+    // DEBUG COOLDOWN
+
     float magnetCd = 0f;
     float boostTime = 0f;
     float fruitBoostTime = 0f;
@@ -51,7 +119,7 @@ public class Movement : MonoBehaviour {
     int health;
 
     float speed;
-    string GameMode;
+    GameModes GameMode;
     Vector3 vec;
 
     // list to track locations 
@@ -59,6 +127,13 @@ public class Movement : MonoBehaviour {
 
     void print(string a) {
         Debug.Log(a);
+    }
+
+    bool isClose(GameObject obj, GameObject _obj, int distance) {
+        float xDiff = obj.transform.position.x - _obj.transform.position.x;
+        float yDiff = obj.transform.position.y - _obj.transform.position.y;
+
+        return (Mathf.Abs(xDiff) < distance && Mathf.Abs(yDiff) < distance);
     }
 
     List<GameObject> initiateObstacles(int amount) {
@@ -74,21 +149,10 @@ public class Movement : MonoBehaviour {
             while (Mathf.Abs(obj.transform.position.x) < 2 || Mathf.Abs(obj.transform.position.y) < 2) 
                 obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
 
-            foreach (GameObject g in obstacles) {
-                if (g != null) {
-                    float xDiff = 0f;
-                    float yDiff = 0f;
-
-                    if (g.transform.position.x != 0) 
-                        xDiff = g.transform.position.x - obj.transform.position.x;
-                    if (g.transform.position.y != 0)
-                        yDiff = g.transform.position.y - obj.transform.position.y;
-
-                    if (Mathf.Abs(xDiff) < 1 && Mathf.Abs(yDiff) < 1) {
-                        obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
-                    }
-                }
-            }
+            foreach (GameObject g in obstacles) 
+                if (g != null) 
+                    while (isClose(obj, g, 2)) obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
+            
 
             obj.name = "Obstacle " + i;
             obj.GetComponent<Renderer>().material.SetColor("_Color", Color.blue);
@@ -113,6 +177,8 @@ public class Movement : MonoBehaviour {
 
     void Start() {
 
+        Bind = new Binds();
+
         obstacles = initiateObstacles(3);
 
         cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -123,8 +189,9 @@ public class Movement : MonoBehaviour {
         magnet = false;
         canBoost = false;
         powerUp = false;
+
         counter = 0;
-        health = 3;
+        health = 3; 
 
         spawnCube();
         cube.tag = "Enemy";
@@ -151,6 +218,7 @@ public class Movement : MonoBehaviour {
 
         mainColor = this.GetComponent<Renderer>();
         buffColor = buff.GetComponent<Renderer>();
+        cubeColor = cube.GetComponent<Renderer>();
 
         buffColor.material.SetColor("_Color", Color.yellow);
 
@@ -158,7 +226,7 @@ public class Movement : MonoBehaviour {
         fruitOnBoard = false;
 
         // BOUNCE or TELEPORT or DIE
-        GameMode = "TELEPORT";
+        GameMode = GameModes.TELEPORT;
         // GameMode is the way the object collides
 
         inSession = true;
@@ -201,21 +269,21 @@ public class Movement : MonoBehaviour {
         //locations.Add(transform.position);
         
         if (!(transform.position.x <= -9.5 || transform.position.x >= 9.5 || transform.position.y <= -9.5 || transform.position.y >= 9.5) && inSession) {
-            if (Input.GetKey(KeyCode.A)) vec = new Vector3(-speed, 0f, 0f);    
-            if (Input.GetKey(KeyCode.D)) vec = new Vector3(speed, 0f, 0f);  
-            if (Input.GetKey(KeyCode.S)) vec = new Vector3(0.0f, -speed, 0.0f);  
-            if (Input.GetKey(KeyCode.W)) vec = new Vector3(0.0f, speed, 0.0f);  
+            if (Input.GetKey(Bind.LEFT)) vec = new Vector3(-speed, 0f, 0f);    
+            if (Input.GetKey(Bind.RIGHT)) vec = new Vector3(speed, 0f, 0f);  
+            if (Input.GetKey(Bind.DOWN)) vec = new Vector3(0.0f, -speed, 0.0f);  
+            if (Input.GetKey(Bind.UP)) vec = new Vector3(0.0f, speed, 0.0f);  
             
             // speed modification dev tool
-            if ((Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.DownArrow)) && Time.time - speedDevCd > 0.2) {
-                if (Input.GetKey(KeyCode.UpArrow)) speed+=0.01f;
-                if (Input.GetKey(KeyCode.DownArrow)) speed-=0.01f;
+            if (isDEV && (Input.GetKey(Bind.SPEED_UP) || Input.GetKey(Bind.SPEED_DOWN)) && Time.time - speedDevCd > 0.2) {
+                if (Input.GetKey(Bind.SPEED_UP)) speed+=0.01f;
+                if (Input.GetKey(Bind.SPEED_DOWN)) speed-=0.01f;
 
                 print("Speed raised to: " + speed + " m/s");
 
                 speedDevCd = Time.time;
             }
-            if (Input.GetKey(KeyCode.B) && (Time.time - cubeMovingCooldown) > 1) {
+            if (isDEV && Input.GetKey(Bind.TOGGLE_AI) && (Time.time - cubeMovingCooldown) > 1) {
                 cubeMoving = !cubeMoving;
                 print(cubeMoving ? "AI following you now!" : "AI stopped following you!");
                 cubeMovingCooldown = Time.time;
@@ -239,37 +307,50 @@ public class Movement : MonoBehaviour {
         */
         
         // TOGGLE GAMEMODE
-        if (Input.GetKey(KeyCode.G) && (Time.time - gameModeCooldown) > 1) {
-            GameMode = (GameMode == "TELEPORT") ? "BOUNCE" : ((GameMode == "BOUNCE") ? "DIE" : "TELEPORT");
+        if (Input.GetKey(Bind.GAMEMODE) && (Time.time - gameModeCooldown) > 1) {
+            GameMode = (GameMode == GameModes.TELEPORT) ? GameModes.BOUNCE : ((GameMode == GameModes.BOUNCE) ? GameModes.DIE : GameModes.TELEPORT);
             print("GameMode set to " + GameMode);
             gameModeCooldown = Time.time;
         }
 
-        if (Input.GetKey(KeyCode.M) && (Time.time - magnetCd) > 0.5f) {
+        if (Input.GetKey(Bind.MAGNET) && (Time.time - magnetCd) > 0.5f) {
             magnet = !magnet;
             print("Magnet toggled: " + magnet);
             magnetCd = Time.time;
         }
+        if (isDEV && Input.GetKey(Bind.DEV_DEBUG) && (Time.time - debugCd) > 0.5f) {
+            foreach (GameObject o in obstacles) {
+                if (o != null) {
+                    print(o.name + ": " + o.transform.position);
+                    if (isClose(o,buff,2)) print("IS CLOSE!!!");
+                }
+            } 
+            print("Fruit: " + buff.transform.position);
+            print("------------------------");
+            debugCd = Time.time;
+        }
 
         // BOOST
-        if (Input.GetKey(KeyCode.Space) && (Time.time - lastRecorded) > 1) {
+        if (Input.GetKey(Bind.RESTART)) {
             if (!inSession) {
-                GameMode = "TELEPORT";
+                GameMode = GameModes.TELEPORT;
                 speed = 0.01f;
                 inSession = true;
                 vec = new Vector3(speed, 0f, 0f);
-                print("Game restarted, GameMode reverted to TELEPORT.");
-            } else {
-                if (canBoost) {
-                    temp2 = speed;
-                    speed*=3;
-                    //print("boost STARTED");
-                    boostTime = Time.time; // 1
-                    lastRecorded = Time.time;
-                    canBoost = false;
-                    mainColor.material.SetColor("_Color", new Color(0,248,255));
-                }
-            }
+                obstacles = initiateObstacles(3);
+                _counter = 0;
+                counter = 0;
+                // DEBUG_PRINT print("Game restarted, GameMode reverted to TELEPORT.");
+            } 
+        }
+        if (Input.GetKey(Bind.BOOST) && canBoost && (Time.time - lastRecorded) > 1) {
+            temp2 = speed;
+            speed*=3;
+            //print("boost STARTED");
+            boostTime = Time.time; // 1
+            lastRecorded = Time.time;
+            canBoost = false;
+            mainColor.material.SetColor("_Color", new Color(0,248,255));
         }
 
 
@@ -282,9 +363,9 @@ public class Movement : MonoBehaviour {
         //print(transform.position);
 
         if (transform.position.x <= -9.5 || transform.position.x >= 9.5 || transform.position.y <= -9.5 || transform.position.y >= 9.5) {
-            if (GameMode == "BOUNCE")
+            if (GameMode == GameModes.BOUNCE)
                 vec = new Vector3(vec.x*-1,vec.y*-1,vec.z*-1);
-            else if (GameMode == "TELEPORT") {
+            else if (GameMode == GameModes.TELEPORT) {
                 if (transform.position.x <= -9.5)
                     transform.position = new Vector3((transform.position.x*-1)-0.05f,transform.position.y,0);
                 if (transform.position.x >= 9.5)
@@ -293,7 +374,7 @@ public class Movement : MonoBehaviour {
                     transform.position = new Vector3(transform.position.x,(transform.position.y*-1)-0.05f,0);
                 if (transform.position.y >= 9.5)
                     transform.position = new Vector3(transform.position.x,(transform.position.y*-1)+0.05f,0);   
-            } else if (GameMode == "DIE") { 
+            } else if (GameMode == GameModes.DIE) { 
                 death();
                 print("gg");
             }
@@ -336,14 +417,32 @@ public class Movement : MonoBehaviour {
 
         //print(timeRounded % 5);
 
+
+
         void spawnFruit() { 
             if (!inSession) return;
              
             double numX = Random.Range(-9.5f, 9.5f);
             double numY = Random.Range(-9.5f, 9.5f);
+            buff.transform.position = new Vector3((float)numX, (float)numY, 0);
+
+            foreach (GameObject g in obstacles) {
+                if (g != null) {
+                    while (isClose(buff,g,1)) {
+                        numX = Random.Range(-9.5f, 9.5f);
+                        numY = Random.Range(-9.5f, 9.5f);
+
+                        buff.transform.position = new Vector3((float)numX, (float)numY, 0);
+                        //print("changed fruit locaiton");
+                    }
+                }
+            }
 
             powerUp = Mathf.Round((float)Random.Range(0, 5)) == 3;
-            if (powerUp) buffColor.material.SetColor("_Color", Color.magenta); else buffColor.material.SetColor("_Color", Color.yellow);
+            if (powerUp) 
+                buffColor.material.SetColor("_Color", Color.magenta);
+            else 
+                buffColor.material.SetColor("_Color", Color.yellow);
 
             buff.transform.position = new Vector3((float)numX, (float)numY, 0);
 
@@ -356,9 +455,24 @@ public class Movement : MonoBehaviour {
 
         if (timeRounded % 5 < 0.01 && Time.time > 0 && !fruitOnBoard) spawnFruit();
 
+        if (fruitOnBoard) {
+            foreach (GameObject o in obstacles) {
+                if (o != null) {
+                    if (isClose(o,buff,2)) spawnFruit();
+                }
+            } 
+        }
+
+        foreach (GameObject o in obstacles) 
+            if (o != null) 
+                foreach (GameObject obj in obstacles) 
+                    if (obj != null) 
+                        if (o != obj && isClose(o,obj,2))
+                            o.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
+
         /*
         ALL FUNTIONAL COLLISION DETECTION CODE JUST BAD :D vvvvv
-        
+    
         if (fruitOnBoard) {
             //print("(" + (Mathf.Round(buff.transform.position.x * 1f) * 0.01f) + ", " + (Mathf.Round(transform.position.y * 1f) * 0.01f) + ") (" + (Mathf.Round(transform.position.x * 1f) * 0.01f) + ", " + (Mathf.Round(buff.transform.position.y * 1f) * 0.01f) + ")");
             if (((Mathf.Round(buff.transform.position.x * 1f) * 0.01f) == (Mathf.Round(transform.position.x * 1f) * 0.01f)) && ((Mathf.Round(buff.transform.position.y * 1f) * 0.01f) == (Mathf.Round(transform.position.y * 1f) * 0.01f))) {
@@ -440,7 +554,7 @@ public class Movement : MonoBehaviour {
             fruitOnBoard = false;
             buff.transform.position = new Vector3(1000f, 1000f, 0);
             // speed boost works but is kinda dumb "PICKED UP FRUIT! Speed Boost &"
-            print("Health Increased by 1: " + health + " -> " + (health+1));
+            // DEBUG_PRINT print("Health Increased by 1: " + health + " -> " + (health+1));
             //print(counter % 5 == 0);
             health++;
             if (!canBoost) counter++;
@@ -450,16 +564,22 @@ public class Movement : MonoBehaviour {
 
             if (counter % 3 == 0 && !canBoost) {
                 mainColor.material.SetColor("_Color", Color.red);
-                print("boost charged!");
+                // DEBUG_PRINT print("boost charged!");
                 canBoost = true;
             }
-            if (_counter % 5 == 0) obstacles = initiateObstacles(obstacles.Count + 1);
+            if (_counter % 5 == 0) {
+                obstacles = initiateObstacles(_counter/5+3);   
+            }
+            
 
             if (powerUp) {
                 powerUp = false;
                 pickedUp = true;
-            } else pickedUp = false;
-            
+                cubeColor.material.SetColor("_Color", Color.magenta);
+            } else {
+                pickedUp = false;
+                cubeColor.material.SetColor("_Color", Color.white);
+            }
 
             /*
             ALL FUNCTIONAL CODE vvvv JUST SPEED BOOST KINDA SUCKS
@@ -479,7 +599,7 @@ public class Movement : MonoBehaviour {
                     print("\ngg");
                 } else {
                     health -= reduced;
-                    print("COLLIDED! Health reduced by " + reduced + ": " + (health+reduced) + " -> " + health);
+                    // DEBUG_PRINT print("COLLIDED! Health reduced by " + reduced + ": " + (health+reduced) + " -> " + health);
                     collideLastRecorded = 0f;
                 }
             }
