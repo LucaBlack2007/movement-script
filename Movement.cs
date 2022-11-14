@@ -24,7 +24,7 @@ using UnityEngine.UI;
         - Every 5 picked up fruits you get a boost you can activate with SPACE
         - Occasoinally a purple fruit will spawn which upon picked up will slow the enemy
 
-        !!! all binds can be changed on LINE 40 - 54 !!!
+        !!! all binds can be changed on LINE 40 - 57 !!!
 
     -------------------------------------------------
     -------------------------------------------------
@@ -77,6 +77,7 @@ public class Movement : MonoBehaviour {
     bool canBoost;
     bool powerUp;
     bool pickedUp;
+    bool canMove;
 
     List<GameObject> obstacles = new List<GameObject>();
 
@@ -88,7 +89,8 @@ public class Movement : MonoBehaviour {
     Renderer mainColor;
     Renderer buffColor;
     Renderer cubeColor;
-    //GameObject healthText;
+    
+    int highScore;
 
     bool cubeMoving;
 
@@ -115,6 +117,7 @@ public class Movement : MonoBehaviour {
     float gameModeCooldown = 0f;
     float speedDevCd = 0f;
     float cubeMovingCooldown = 0f;
+    float invincibility = 0f;
 
     int health;
 
@@ -146,7 +149,7 @@ public class Movement : MonoBehaviour {
             GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
             
-            while (Mathf.Abs(obj.transform.position.x) < 2 || Mathf.Abs(obj.transform.position.y) < 2) 
+            while (Mathf.Abs(obj.transform.position.x) < 2 || Mathf.Abs(obj.transform.position.y) < 2 || isClose(this.gameObject,obj,2))  
                 obj.transform.position = new Vector3((float)Random.Range(-8.5f, 8.5f), (float)Random.Range(-8.5f, 8.5f), 0);
 
             foreach (GameObject g in obstacles) 
@@ -192,6 +195,7 @@ public class Movement : MonoBehaviour {
 
         counter = 0;
         health = 3; 
+        highScore = 0;
 
         spawnCube();
         cube.tag = "Enemy";
@@ -242,14 +246,24 @@ public class Movement : MonoBehaviour {
         // ai code initiation
         //gos = GameObject.FindGameObjectsWithTag("Text");
         //healthText = gos[0];
+
+        canMove = true;
+        // can the cube move with movement keys?
     }
 
 
-    void death() {
+    void death(bool scores=true) {
+        if (health > highScore) highScore = health;
+        if (scores) {
+            print("Score: " + health);
+            print("High Score: " + highScore);
+        }
+
         transform.position = new Vector3(0f,0f,0f);
         speed = 0f;
         health = 0;
         inSession = false;
+        canMove = false;
     }
 
     // Update is called once per frame
@@ -269,10 +283,13 @@ public class Movement : MonoBehaviour {
         //locations.Add(transform.position);
         
         if (!(transform.position.x <= -9.5 || transform.position.x >= 9.5 || transform.position.y <= -9.5 || transform.position.y >= 9.5) && inSession) {
-            if (Input.GetKey(Bind.LEFT)) vec = new Vector3(-speed, 0f, 0f);    
-            if (Input.GetKey(Bind.RIGHT)) vec = new Vector3(speed, 0f, 0f);  
-            if (Input.GetKey(Bind.DOWN)) vec = new Vector3(0.0f, -speed, 0.0f);  
-            if (Input.GetKey(Bind.UP)) vec = new Vector3(0.0f, speed, 0.0f);  
+            
+            if (canMove) {
+                if (Input.GetKey(Bind.LEFT)) vec = new Vector3(-speed, 0f, 0f);    
+                if (Input.GetKey(Bind.RIGHT)) vec = new Vector3(speed, 0f, 0f);  
+                if (Input.GetKey(Bind.DOWN)) vec = new Vector3(0.0f, -speed, 0.0f);  
+                if (Input.GetKey(Bind.UP)) vec = new Vector3(0.0f, speed, 0.0f);  
+            }
             
             // speed modification dev tool
             if (isDEV && (Input.GetKey(Bind.SPEED_UP) || Input.GetKey(Bind.SPEED_DOWN)) && Time.time - speedDevCd > 0.2) {
@@ -340,6 +357,8 @@ public class Movement : MonoBehaviour {
                 obstacles = initiateObstacles(3);
                 _counter = 0;
                 counter = 0;
+                canMove = true;
+                for (int i = 0; i < 10; i++) print(" "); 
                 // DEBUG_PRINT print("Game restarted, GameMode reverted to TELEPORT.");
             } 
         }
@@ -376,7 +395,7 @@ public class Movement : MonoBehaviour {
                     transform.position = new Vector3(transform.position.x,(transform.position.y*-1)+0.05f,0);   
             } else if (GameMode == GameModes.DIE) { 
                 death();
-                print("gg");
+              // print("gg");
             }
         }
         
@@ -414,6 +433,8 @@ public class Movement : MonoBehaviour {
         }
 
         float timeRounded = (Mathf.Round(Time.time * 100.0f) * 0.01f);
+        invincibility+=0.0012f;
+        //print(invincibility);
 
         //print(timeRounded % 5);
 
@@ -569,6 +590,7 @@ public class Movement : MonoBehaviour {
             }
             if (_counter % 5 == 0) {
                 obstacles = initiateObstacles(_counter/5+3);   
+                invincibility = 0f;
             }
             
 
@@ -596,19 +618,30 @@ public class Movement : MonoBehaviour {
                 if (health < 2) reduced = 1;
                 if (health <= reduced) {
                     death();
-                    print("\ngg");
+                  //  print("\ngg");
                 } else {
                     health -= reduced;
                     // DEBUG_PRINT print("COLLIDED! Health reduced by " + reduced + ": " + (health+reduced) + " -> " + health);
                     collideLastRecorded = 0f;
                 }
             }
-        } else if (tag == "Obstacle") {
-            death();
-            print("collided with obstacle!");
-        }
+        } else if (tag == "Obstacle" && inSession) {
+            
+            if (invincibility > 2) {
+                death();
+                //print("collided with obstacle!");
+            } else {
+                vec = new Vector3(vec.x*-1,vec.y*-1,0); 
+                canMove = false;
+            }
+            
+        } 
 
         //print("collided");
+    }
+
+    void OnTriggerExit(Collider other) {
+        if (other.tag == "Obstacle") canMove = true;
     }
 
      
